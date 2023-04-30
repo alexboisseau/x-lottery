@@ -29,6 +29,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     address payable s_recentWinner;
     address payable[] private s_players; // s for storage
     LotteryState private s_lotteryState;
+    uint256 private s_lastTimestamp;
+    uint256 private immutable i_interval;
 
     /* Events */
     event LotteryEnter(address indexed player);
@@ -40,7 +42,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         address vrfCoordinatorV2,
         bytes32 gasLane,
         uint64 subscriptionId,
-        uint32 callbackGasLimit
+        uint32 callbackGasLimit,
+        uint256 interval
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
         i_entranceFee = _entranceFee;
         i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
@@ -48,6 +51,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
         s_lotteryState = LotteryState.OPEN;
+        s_lastTimestamp = block.timestamp;
+        i_interval = interval;
     }
 
     function enterLottery() public payable {
@@ -89,7 +94,18 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
      */
     function checkUpkeep(
         bytes calldata /* checkData */
-    ) external override returns (bool upkeepNeeded, bytes memory performData) {}
+    )
+        external
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory /*performData*/)
+    {
+        bool isOpen = s_lotteryState == LotteryState.OPEN;
+        bool timePassed = ((block.timestamp - s_lastTimestamp) > i_interval);
+        bool hasPlayers = s_players.length > 0;
+        bool hasBalance = address(this).balance > 0;
+        upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
+    }
 
     function performUpkeep(bytes calldata performData) external override {}
 
