@@ -11,3 +11,7 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat run scripts/deploy.ts
 ```
+
+# ChainLink VRF (Verifiable Random Function)
+
+Source : https://docs.chain.link/vrf/v2/introduction
