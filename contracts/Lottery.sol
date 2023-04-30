@@ -5,6 +5,7 @@ import '@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol';
 import '@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol';
 import '@chainlink/contracts/src/v0.8/AutomationCompatible.sol';
 
+/* Custom Errors */
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransfertFailed();
 error Lottery__NotOpen();
@@ -14,8 +15,13 @@ error Lottery__UpkeepNotNeeded(
     uint256 raffleState
 );
 
+/**
+ * @title Lottery Smart Contract
+ * @author Written by Alex Boisseau and Theo Delas, following the course of Patrick Collins.
+ * @dev This contract implement ChainLink VRF v2 and ChainLink Automation.
+ */
 contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
-    /* Type declaration */
+    /* Type Declarations */
     enum LotteryState {
         OPEN,
         CALCULATING
@@ -30,7 +36,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     uint32 private immutable i_callbackGasLimit;
     uint32 private constant NUM_WORDS = 1;
 
-    /* Lottery variables */
+    /* Lottery Variables */
     address payable s_recentWinner;
     address payable[] private s_players; // s for storage
     LotteryState private s_lotteryState;
@@ -41,7 +47,11 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     event LotteryEnter(address indexed player);
     event RequestedLotteryWinner(uint256 indexed requestId);
 
-    /* VRFConsumerBaseV2 take an address in his constructor, this is why we take the vrfCoordinatorV2 parameter in the Lottery Constructor*/
+    /* Functions */
+
+    /**
+     * @dev VRFConsumerBaseV2 take an address in his constructor, this is why we take the vrfCoordinatorV2 parameter in the Lottery Constructor
+     */
     constructor(
         uint256 _entranceFee,
         address vrfCoordinatorV2,
@@ -98,6 +108,9 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         return (upkeepNeeded, '0x0');
     }
 
+    /**
+     * @dev This function will be called after the checkUpkeep in case of upkeepNeeded is true
+     */
     function performUpkeep(bytes calldata /*performData*/) external override {
         (bool upkeepNeeded, ) = checkUpkeep('');
         if (!upkeepNeeded) {
@@ -122,7 +135,9 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         emit RequestedLotteryWinner(requestId);
     }
 
-    //Callback which handle the random values after they are returned to your contract by the coordinator.
+    /**
+     * @dev Callback which handle the random values after they are returned to your contract by the VRF coordinator.
+     */
     function fulfillRandomWords(
         uint256 /* requestId */,
         uint256[] memory randomWords
