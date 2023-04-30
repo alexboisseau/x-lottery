@@ -8,6 +8,11 @@ import '@chainlink/contracts/src/v0.8/AutomationCompatible.sol';
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransfertFailed();
 error Lottery__NotOpen();
+error Lottery__UpkeepNotNeeded(
+    uint256 currentBalance,
+    uint256 numPlayers,
+    uint256 raffleState
+);
 
 contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     /* Type declaration */
@@ -68,7 +73,41 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         emit LotteryEnter(msg.sender);
     }
 
-    function requestRandomWinner() external returns (uint256) {
+    /**
+     * @dev This is the function that ChainLink automation will call to see if the performUpkeep should be call.
+     * Following need to be true to return true :
+     *  1 - Our time interval have passed
+     *  2 - The lottery should have at least 1 player and ETH
+     *  3 - Our subscription is funded with LINK
+     *  4 - The lottery should be in a OPEN state
+     */
+    function checkUpkeep(
+        bytes memory /* checkData */
+    )
+        public
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory /*performData*/)
+    {
+        bool isOpen = s_lotteryState == LotteryState.OPEN;
+        bool timePassed = ((block.timestamp - s_lastTimestamp) > i_interval);
+        bool hasPlayers = s_players.length > 0;
+        bool hasBalance = address(this).balance > 0;
+        upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
+
+        return (upkeepNeeded, '0x0');
+    }
+
+    function performUpkeep(bytes calldata /*performData*/) external override {
+        (bool upkeepNeeded, ) = checkUpkeep('');
+        if (!upkeepNeeded) {
+            revert Lottery__UpkeepNotNeeded(
+                address(this).balance,
+                s_players.length,
+                uint256(s_lotteryState)
+            );
+        }
+
         s_lotteryState = LotteryState.CALCULATING;
 
         // Request the random number to the VRF
@@ -81,33 +120,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         );
 
         emit RequestedLotteryWinner(requestId);
-        return requestId;
     }
-
-    /**
-     * @dev This is the function that ChainLink automation will call to see if the performUpkeep should be call.
-     * Following need to be true to return true :
-     *  1 - Our time interval have passed
-     *  2 - The lottery should have at least 1 player and ETH
-     *  3 - Our subscription is funded with LINK
-     *  4 - The lottery should be in a OPEN state
-     */
-    function checkUpkeep(
-        bytes calldata /* checkData */
-    )
-        external
-        view
-        override
-        returns (bool upkeepNeeded, bytes memory /*performData*/)
-    {
-        bool isOpen = s_lotteryState == LotteryState.OPEN;
-        bool timePassed = ((block.timestamp - s_lastTimestamp) > i_interval);
-        bool hasPlayers = s_players.length > 0;
-        bool hasBalance = address(this).balance > 0;
-        upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
-    }
-
-    function performUpkeep(bytes calldata performData) external override {}
 
     //Callback which handle the random values after they are returned to your contract by the coordinator.
     function fulfillRandomWords(
@@ -119,6 +132,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         s_recentWinner = recentWinner;
         s_lotteryState = LotteryState.OPEN;
         s_players = new address payable[](0);
+        s_lastTimestamp = block.timestamp;
         (bool success, ) = recentWinner.call{value: address(this).balance}('');
         if (!success) {
             revert Lottery__TransfertFailed();
