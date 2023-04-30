@@ -3,14 +3,21 @@ pragma solidity ^0.8.18;
 
 import '@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol';
 import '@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol';
+import '@chainlink/contracts/src/v0.8/AutomationCompatible.sol';
 
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransfertFailed();
+error Lottery__NotOpen();
 
-contract Lottery is VRFConsumerBaseV2 {
+contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
+    /* Type declaration */
+    enum LotteryState {
+        OPEN,
+        CALCULATING
+    }
+
     /* State Variables */
     uint256 private immutable i_entranceFee; // i for immutable
-    address payable[] private s_players; // s for storage
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
     bytes32 private immutable i_gasLane;
     uint64 private immutable i_subscriptionId;
@@ -20,6 +27,8 @@ contract Lottery is VRFConsumerBaseV2 {
 
     /* Lottery variables */
     address payable s_recentWinner;
+    address payable[] private s_players; // s for storage
+    LotteryState private s_lotteryState;
 
     /* Events */
     event LotteryEnter(address indexed player);
@@ -38,6 +47,7 @@ contract Lottery is VRFConsumerBaseV2 {
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
+        s_lotteryState = LotteryState.OPEN;
     }
 
     function enterLottery() public payable {
@@ -45,11 +55,17 @@ contract Lottery is VRFConsumerBaseV2 {
             revert Lottery__NotEnoughETHEntered();
         }
 
+        if (s_lotteryState != LotteryState.OPEN) {
+            revert Lottery__NotOpen();
+        }
+
         s_players.push(payable(msg.sender));
         emit LotteryEnter(msg.sender);
     }
 
     function requestRandomWinner() external returns (uint256) {
+        s_lotteryState = LotteryState.CALCULATING;
+
         // Request the random number to the VRF
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_gasLane,
@@ -63,6 +79,20 @@ contract Lottery is VRFConsumerBaseV2 {
         return requestId;
     }
 
+    /**
+     * @dev This is the function that ChainLink automation will call to see if the performUpkeep should be call.
+     * Following need to be true to return true :
+     *  1 - Our time interval have passed
+     *  2 - The lottery should have at least 1 player and ETH
+     *  3 - Our subscription is funded with LINK
+     *  4 - The lottery should be in a OPEN state
+     */
+    function checkUpkeep(
+        bytes calldata /* checkData */
+    ) external override returns (bool upkeepNeeded, bytes memory performData) {}
+
+    function performUpkeep(bytes calldata performData) external override {}
+
     //Callback which handle the random values after they are returned to your contract by the coordinator.
     function fulfillRandomWords(
         uint256 /* requestId */,
@@ -71,6 +101,8 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256 indexOfWinner = randomWords[0] % s_players.length;
         address payable recentWinner = s_players[indexOfWinner];
         s_recentWinner = recentWinner;
+        s_lotteryState = LotteryState.OPEN;
+        s_players = new address payable[](0);
         (bool success, ) = recentWinner.call{value: address(this).balance}('');
         if (!success) {
             revert Lottery__TransfertFailed();
