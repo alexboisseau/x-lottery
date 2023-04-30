@@ -42,4 +42,12 @@ describe("Lottery", () => {
 
     expect(players.length).equal(1);
   });
+
+  it("should emit a new event when a player enter in the lottery", async () => {
+    await expect(
+      LotteryContract.enterLottery({
+        value: entranceFee,
+      })
+    ).to.emit(LotteryContract, "LotteryEnter");
+  });
 });

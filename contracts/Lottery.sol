@@ -8,6 +8,9 @@ contract Lottery {
   uint256 private immutable i_entranceFee; // i for immutable
   address payable[] private s_players; // s for storage
 
+  /* Events */
+  event LotteryEnter(address indexed player);
+
   constructor(uint256 _entranceFee) {
     i_entranceFee = _entranceFee;
   }
@@ -18,6 +21,7 @@ contract Lottery {
     }
 
     s_players.push(payable(msg.sender));
+    emit LotteryEnter(msg.sender);
   }
 
   function getEntranceFee() public view returns (uint256) {
