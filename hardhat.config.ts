@@ -7,8 +7,6 @@ import { HardhatUserConfig } from 'hardhat/config';
 // Specific to the Metamask account
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-console.log(PRIVATE_KEY);
-
 // Specific to the Sepolia network
 const SEPOLIA_RPC_URL =
   process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/api-key';
