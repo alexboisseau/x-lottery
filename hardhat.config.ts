@@ -1,4 +1,5 @@
 import '@nomicfoundation/hardhat-toolbox';
+import 'dotenv/config';
 import 'hardhat-deploy';
 
 import { HardhatUserConfig } from 'hardhat/config';
@@ -6,10 +7,11 @@ import { HardhatUserConfig } from 'hardhat/config';
 // Specific to the Metamask account
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
+console.log(PRIVATE_KEY);
+
 // Specific to the Sepolia network
 const SEPOLIA_RPC_URL =
   process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/api-key';
-const SEPOLIA_CHAIN_ID = process.env.SEPOLIA_CHAIN_ID || '123';
 
 // Specific to Etherscan
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || 'abcde';
@@ -36,6 +38,11 @@ const config: HardhatUserConfig = {
     },
     player: {
       default: 1,
+    },
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: ETHERSCAN_API_KEY,
     },
   },
   gasReporter: {
