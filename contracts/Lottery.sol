@@ -178,4 +178,20 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
   function getLatestTimestamp() public view returns (uint256) {
     return s_lastTimestamp;
   }
+
+  function getInterval() public view returns (uint256) {
+    return i_interval;
+  }
+
+  function getSubscriptionId() public view returns (uint256) {
+    return i_subscriptionId;
+  }
+
+  function getGasLane() public view returns (bytes32) {
+    return i_gasLane;
+  }
+
+  function getCallbackGasLimit() public view returns (uint256) {
+    return i_callbackGasLimit;
+  }
 }
