@@ -68,6 +68,13 @@ const deployLottery: DeployFunction = async function (
     waitConfirmations: waitBlockConfirmations,
   });
 
+  if (developmentChains.includes(network.name)) {
+    const vrfCoordinatorV2Mock = await ethers.getContract(
+      'VRFCoordinatorV2Mock'
+    );
+    await vrfCoordinatorV2Mock.addConsumer(subscriptionId, lottery.address);
+  }
+
   if (
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
