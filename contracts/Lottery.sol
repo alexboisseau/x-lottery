@@ -102,8 +102,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     bool isOpen = s_lotteryState == LotteryState.OPEN;
     bool timePassed = ((block.timestamp - s_lastTimestamp) > i_interval);
     bool hasPlayers = s_players.length > 0;
-    bool hasBalance = address(this).balance > 0;
-    upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
+    upkeepNeeded = (isOpen && timePassed && hasPlayers);
 
     return (upkeepNeeded, '0x0');
   }
@@ -159,8 +158,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     return i_entranceFee;
   }
 
-  function getPlayers() public view returns (address payable[] memory) {
-    return s_players;
+  function getPlayer(uint256 index) public view returns (address) {
+    return s_players[index];
   }
 
   function getRecentWinner() public view returns (address) {
