@@ -46,6 +46,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
   /* Events */
   event LotteryEnter(address indexed player);
   event RequestedLotteryWinner(uint256 indexed requestId);
+  event WinnerPicked(address indexed player);
 
   /* Functions */
 
@@ -151,6 +152,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     if (!success) {
       revert Lottery__TransfertFailed();
     }
+
+    emit WinnerPicked(recentWinner);
   }
 
   /* View / Pure functions */
@@ -162,7 +165,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     return s_players[index];
   }
 
-  function getRecentWinner() public view returns (address) {
+  function getRecentWinner() public view returns (address payable) {
     return s_recentWinner;
   }
 

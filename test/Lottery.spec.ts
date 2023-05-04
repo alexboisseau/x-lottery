@@ -1,7 +1,8 @@
 import { deployments, ethers, getNamedAccounts, network } from 'hardhat';
 import { developmentChains, networkConfig } from '../helper-hardhat.config';
-import { BigNumberish, Contract } from 'ethers';
+import { BigNumber, BigNumberish, Contract } from 'ethers';
 import { expect } from 'chai';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 if (developmentChains.includes(network.name)) {
   describe('Lottery Unit Tests', function () {
@@ -9,7 +10,7 @@ if (developmentChains.includes(network.name)) {
     let lotteryContract: Contract;
     let vrfCoordinatorV2MockContract: Contract;
     let chainId: number;
-    let entranceFee: BigNumberish;
+    let entranceFee: BigNumber;
 
     this.beforeEach(async function () {
       deployer = (await getNamedAccounts()).deployer;
@@ -18,6 +19,10 @@ if (developmentChains.includes(network.name)) {
       vrfCoordinatorV2MockContract = await ethers.getContract(
         'VRFCoordinatorV2Mock',
         deployer
+      );
+      await vrfCoordinatorV2MockContract.fundSubscription(
+        networkConfig[network.config.chainId!].subscriptionId,
+        ethers.utils.parseEther('1')
       );
 
       chainId = network.config.chainId!;
@@ -191,10 +196,139 @@ if (developmentChains.includes(network.name)) {
         await network.provider.send('evm_mine', []);
 
         const players = await lotteryContract.getNumberOfPlayers();
-        console.log('PLAYERS : ', players.toNumber());
 
         const { upkeepNeeded } = await lotteryContract.checkUpkeep([]);
         expect(upkeepNeeded).equal(true);
+      });
+    });
+
+    describe('PerformUpkeep', function () {
+      it('should revert a custom error when upkeepNeeded value is falsy', async function () {
+        await expect(
+          lotteryContract.performUpkeep([])
+        ).to.revertedWithCustomError(
+          lotteryContract,
+          'Lottery__UpkeepNotNeeded'
+        );
+      });
+
+      it('should update the lottery state and emit an event', async function () {
+        // ARRANGE
+        const interval = await lotteryContract.getInterval();
+
+        // ACT
+        await lotteryContract.enterLottery({
+          value: entranceFee,
+        });
+        await network.provider.send('evm_increaseTime', [
+          interval.toNumber() + 1,
+        ]);
+        await network.provider.send('evm_mine', []);
+
+        const transactionRequest = await lotteryContract.performUpkeep([]);
+        const transactionReceipt = await transactionRequest.wait(1);
+        const requestId = await transactionReceipt.events[1].args.requestId;
+        const lotteryState = await lotteryContract.getLotteryState();
+
+        // ASSERT
+        expect(requestId.toNumber()).to.be.greaterThan(0);
+        expect(lotteryState).equal(1);
+
+        // Since performUpkeep will call the vrfCoordinator, we need to call
+        // the fulfillRandomWords since the mock doesn't it to for us.
+        await vrfCoordinatorV2MockContract.fulfillRandomWords(
+          transactionReceipt.events[1].args.requestId,
+          lotteryContract.address
+        );
+      });
+    });
+
+    describe('fulfillRandomWords', function () {
+      let startingTimestamp: BigNumber;
+      let players: {
+        startingBalance: BigNumber;
+        address: string;
+      }[] = [];
+
+      it('should reset lottery state, clear players array, update the latest timestamp and distribute fund', async function () {
+        // Deployer enter into the lottery
+        await lotteryContract.enterLottery({
+          value: entranceFee,
+        });
+
+        // Increase the lottery
+        const interval = await lotteryContract.getInterval();
+        await network.provider.send('evm_increaseTime', [
+          interval.toNumber() + 1,
+        ]);
+        await network.provider.request({ method: 'evm_mine', params: [] });
+
+        // Add 3 players to the lottery
+        const additionalEntrants = 3;
+        const startingAccountIndex = 1; // 0 is the deployer
+        const accounts = await ethers.getSigners();
+
+        for (
+          let i = startingAccountIndex;
+          i < additionalEntrants + startingAccountIndex;
+          i++
+        ) {
+          const account = accounts[i];
+          const accountBalance = await account.getBalance();
+          players.push({
+            address: account.address,
+            startingBalance: accountBalance,
+          });
+          const accountConnectedLottery = lotteryContract.connect(account);
+          await accountConnectedLottery.enterLottery({
+            value: entranceFee,
+          });
+        }
+
+        startingTimestamp = await lotteryContract.getLatestTimestamp();
+
+        await new Promise(async (resolve, reject) => {
+          try {
+            lotteryContract.once('WinnerPicked', async () => {
+              try {
+                const lotteryState = await lotteryContract.getLotteryState();
+                const numberOfPlayers =
+                  await lotteryContract.getNumberOfPlayers();
+
+                expect(lotteryState).equal(0);
+                expect(numberOfPlayers).equal(0);
+
+                const recentWinner = await lotteryContract.getRecentWinner();
+                const player = players.filter(
+                  ({ address }) => address === recentWinner
+                )[0];
+
+                const recentWinnerSigner = await ethers.getSigner(recentWinner);
+                const recentWinnerBalance =
+                  await recentWinnerSigner.getBalance();
+
+                expect(recentWinnerBalance.gt(player.startingBalance));
+                resolve('Winner Picked Fireeeed');
+              } catch (error) {
+                reject(error);
+              }
+            });
+
+            // Simulate the Chainlink automation which will call the targeted method (perfomUpkeep)
+            const performUpkeepRequest = await lotteryContract.performUpkeep(
+              []
+            );
+            const performUpkeepReceipt = await performUpkeepRequest.wait(1);
+
+            // Simulate the vrf coordinator which receive random words from off chain service
+            await vrfCoordinatorV2MockContract.fulfillRandomWords(
+              performUpkeepReceipt.events[1].args.requestId,
+              lotteryContract.address
+            );
+          } catch (error) {
+            reject(error);
+          }
+        });
       });
     });
   });

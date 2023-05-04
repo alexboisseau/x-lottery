@@ -1,4 +1,4 @@
-import { BigNumberish } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
 import { ethers } from 'hardhat';
 
 export interface networkConfigItem {
@@ -6,7 +6,7 @@ export interface networkConfigItem {
   subscriptionId: string;
   gasLane: string;
   keepersUpdateInterval: string;
-  lotteryEntranceFee: BigNumberish;
+  lotteryEntranceFee: BigNumber;
   callbackGasLimit: string;
   vrfCoordinatorV2?: string;
 }
