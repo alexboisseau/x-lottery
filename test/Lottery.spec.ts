@@ -1,8 +1,7 @@
 import { deployments, ethers, getNamedAccounts, network } from 'hardhat';
 import { developmentChains, networkConfig } from '../helper-hardhat.config';
-import { BigNumber, BigNumberish, Contract } from 'ethers';
+import { BigNumber, Contract } from 'ethers';
 import { expect } from 'chai';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 if (developmentChains.includes(network.name)) {
   describe('Lottery Unit Tests', function () {
@@ -12,10 +11,17 @@ if (developmentChains.includes(network.name)) {
     let chainId: number;
     let entranceFee: BigNumber;
 
-    this.beforeEach(async function () {
+    this.beforeAll(async function () {
       deployer = (await getNamedAccounts()).deployer;
-      await deployments.fixture('all'); // Deploy all contracts which have the tag 'all';
+      chainId = network.config.chainId!;
+      entranceFee = networkConfig[chainId].lotteryEntranceFee;
+    });
+
+    this.beforeEach(async function () {
+      await deployments.fixture('all');
+
       lotteryContract = await ethers.getContract('Lottery', deployer);
+
       vrfCoordinatorV2MockContract = await ethers.getContract(
         'VRFCoordinatorV2Mock',
         deployer
@@ -24,9 +30,6 @@ if (developmentChains.includes(network.name)) {
         networkConfig[network.config.chainId!].subscriptionId,
         ethers.utils.parseEther('1')
       );
-
-      chainId = network.config.chainId!;
-      entranceFee = networkConfig[chainId].lotteryEntranceFee;
     });
 
     describe('Deployments', function () {
@@ -250,6 +253,12 @@ if (developmentChains.includes(network.name)) {
         address: string;
       }[] = [];
 
+      let lotterySnapshot: {
+        lastTimestamp: 0;
+        recentWinnerAddress: string;
+        state: 0;
+      };
+
       it('should reset lottery state, clear players array, update the latest timestamp and distribute fund', async function () {
         // Deployer enter into the lottery
         await lotteryContract.enterLottery({
@@ -331,5 +340,7 @@ if (developmentChains.includes(network.name)) {
         });
       });
     });
+
+    describe('another fulfillRandomWords', function () {});
   });
 }
