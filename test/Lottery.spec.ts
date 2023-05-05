@@ -246,18 +246,12 @@ if (developmentChains.includes(network.name)) {
       });
     });
 
-    describe('fulfillRandomWords', function () {
+    describe('FulfillRandomWords', function () {
       let startingTimestamp: BigNumber;
       let players: {
         startingBalance: BigNumber;
         address: string;
       }[] = [];
-
-      let lotterySnapshot: {
-        lastTimestamp: 0;
-        recentWinnerAddress: string;
-        state: 0;
-      };
 
       it('should reset lottery state, clear players array, update the latest timestamp and distribute fund', async function () {
         // Deployer enter into the lottery
@@ -283,16 +277,24 @@ if (developmentChains.includes(network.name)) {
           i++
         ) {
           const account = accounts[i];
+          const accountConnectedLottery = lotteryContract.connect(account);
+          await accountConnectedLottery.enterLottery({
+            value: entranceFee,
+          });
+
           const accountBalance = await account.getBalance();
           players.push({
             address: account.address,
             startingBalance: accountBalance,
           });
-          const accountConnectedLottery = lotteryContract.connect(account);
-          await accountConnectedLottery.enterLottery({
-            value: entranceFee,
-          });
         }
+
+        players.forEach(async (player) => {
+          console.log(
+            `Balance for player ${player.address} : `,
+            player.startingBalance.toString()
+          );
+        });
 
         startingTimestamp = await lotteryContract.getLatestTimestamp();
 
@@ -316,7 +318,15 @@ if (developmentChains.includes(network.name)) {
                 const recentWinnerBalance =
                   await recentWinnerSigner.getBalance();
 
-                expect(recentWinnerBalance.gt(player.startingBalance));
+                expect(recentWinnerBalance.toString()).equal(
+                  player.startingBalance.add(
+                    entranceFee
+                      .mul(additionalEntrants)
+                      .add(entranceFee)
+                      .toString()
+                  )
+                );
+
                 resolve('Winner Picked Fireeeed');
               } catch (error) {
                 reject(error);
@@ -340,7 +350,5 @@ if (developmentChains.includes(network.name)) {
         });
       });
     });
-
-    describe('another fulfillRandomWords', function () {});
   });
 }
